@@ -46,7 +46,6 @@ def execQy(query, params=None):
     try:
         cur.execute(query, params or ())
         conn.commit()
-        print("Query executed successfully.")
     except Error as e:
         print(f"Error executing query: {e}")
         conn.rollback()
@@ -56,6 +55,5 @@ def execQy(query, params=None):
 def closeCon():
     try:
         conn.close()
-        print("Connection closed successfully.")
     except Error as e:
         print(f"Error closing connection: {e}")

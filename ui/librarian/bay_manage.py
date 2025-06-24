@@ -2,18 +2,22 @@ import tkinter as tk
 from tkinter import StringVar, ttk, messagebox
 from backend.inventory import add_book_inv, get_book_inv, update_book_inv
 
-def show_deshelved_books():
-    books = get_book_inv(status="Unshelved")
+def show_category(category):
+    if category not in ["Unshelved", "Lost", "Missing", "Damaged", "Borrowed"]:
+        messagebox.showerror("Error", "Invalid category chosen.")
+        return
+        
+    books = get_book_inv(status=category)
     if isinstance(books, str): 
         messagebox.showerror("Error", books)
         return
 
     if not books:
-        messagebox.showinfo("Deshelved Books", "No books have been deshelved.")
+        messagebox.showinfo(f"{category} Books", "No books were found.")
         return
 
-    books_list = "\n".join([f"SKU: {book[0]}" for book in books])
-    messagebox.showinfo("Deshelved Books", f"Deshelved Books:\n\n{books_list}")
+    books_list = "\n".join([f"{book[0]}" for book in books])
+    messagebox.showinfo(f"{category} Books", f"{category} Books:\n\n{books_list}")
 
 def open_shelve_popup(app, update_shelf_view):
     def shelve_book():
@@ -151,7 +155,10 @@ def bay_manager(app):
 
     ttk.Button(right_frame, text="Add New Book to Inventory", command=lambda: open_shelve_popup(app, update_shelf_view), style="crimson.TButton").grid(row=0, column=0, pady=10)
     ttk.Button(right_frame, text="Re-add Book / Update Book Position", command=lambda: open_update_popup(app, update_shelf_view), style="crimson.TButton").grid(row=1, column=0, pady=10)
-    ttk.Button(right_frame, text="View Deshelved Books", command=lambda: show_deshelved_books(), style="crimson.TButton").grid(row=4, column=0, pady=10)
+    ttk.Button(right_frame, text="View Deshelved Books", command=lambda: show_category("Unshelved"), style="crimson.TButton").grid(row=2, column=0, pady=10)
+    ttk.Button(right_frame, text="View Missing Books", command=lambda: show_category("Missing"), style="crimson.TButton").grid(row=3, column=0, pady=10)
+    ttk.Button(right_frame, text="View Lost Books", command=lambda: show_category("Lost"), style="crimson.TButton").grid(row=4, column=0, pady=10)
+    ttk.Button(right_frame, text="View Damaged Books", command=lambda: show_category("Damaged"), style="crimson.TButton").grid(row=5, column=0, pady=10)
 
     def update_shelf_view():
         for widget in outer_frame.winfo_children():
