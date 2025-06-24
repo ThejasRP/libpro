@@ -143,7 +143,7 @@ def open_update_member_popup(app, refresh):
 def populate_table():
     table.delete(*table.get_children())
     for member in get_user("Members"):
-        table.insert("", "end", values=(member[0], member[1], member[2], member[4], member[6], member[8], member[9]))
+        table.insert("", "end", values=(member[0], member[1], member[2], member[4], member[6], member[8]))
 
 def member_manager(app, admin_email):
     global table
@@ -154,7 +154,7 @@ def member_manager(app, admin_email):
     frame = ttk.Frame(app)
     frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
 
-    columns = ("Member No.", "Email", "Full Name", "Mobile Number", "Points", "Fines", "Date of Joining")
+    columns = ("Member No.", "Email", "Full Name", "Mobile Number", "Points", "Date of Joining")
     table = ttk.Treeview(frame, columns=columns, show="headings", height=40,bootstyle="secondary")
 
     for col in columns:
