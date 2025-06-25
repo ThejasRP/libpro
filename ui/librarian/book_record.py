@@ -26,7 +26,7 @@ def open_borrow_book(app, refresh):
         userDet = get_user("Members", email=email.get())
         bookDet = (get_book_inv(sku=sku.get()))[0]
 
-        if not userDet or not bookDet:
+        if not userDet or bookDet=="N":
             messagebox.showerror("Error", "Invalid user or book details.")
             popup.destroy()
             refresh()

@@ -33,19 +33,18 @@ def open_add_book_popup(app, refresh_callback):
             return
         result = add_book_det(*data)
         messagebox.showinfo("Status", result)
-        if "success" in result.lower():
-            popup.destroy()
-            refresh_callback()
+        
+        popup.destroy()
+        refresh_callback()
 
     ttk.Button(popup, text="Add Book", command=add).grid(row=4, column=0, columnspan=4, pady=10)
 
 def open_update_book_popup(app, isbn, refresh_callback):
     book_data = get_book_det(str(isbn))[0]
-
     if isinstance(book_data, str):
         messagebox.showerror("Error", book_data)
         return
-
+    
     popup = tk.Toplevel(app)
     popup.title("Update Book")
     vars = {
@@ -103,6 +102,6 @@ def books_manage(app):
         if not selected:
             messagebox.showerror("Error", "Please select a book")
             return None
-        return str(table.item(selected[0])["values"][1])
+        return str(table.item(selected[0])["values"][0])
 
     refresh_table()

@@ -9,6 +9,9 @@ def add_book_det(isbn, title, author, publication, genre, language, description=
 
         if not isbn.isdigit() or len(isbn) not in (10, 13):
             return "Invalid ISBN. Must be 10 or 13 digits."
+        
+        if fOne("SELECT 1 FROM Books WHERE ISBN = %s", (isbn,)):
+            return "Error: This book already exists."
 
         query = """
         INSERT INTO Books (ISBN, Title, Description, Author, Publication, Genre, Language)
@@ -16,7 +19,6 @@ def add_book_det(isbn, title, author, publication, genre, language, description=
         """
         values = (isbn, title, description, author, publication, genre, language)
         execQy(query, values)
-
         return "Book added successfully."
 
     except Error as e:
@@ -28,7 +30,6 @@ def update_book_det(isbn, title=None, description=None, author=None, publication
     try:
         if not isbn:
             return "ISBN is required."
-
         if not isbn.isdigit() or len(isbn) not in (10, 13):
             return "Invalid ISBN. Must be 10 or 13 digits."
 
@@ -112,7 +113,7 @@ def get_book_det(isbn=None, title=None, author=None, publication=None, genre=Non
             if not rows:
                 return "No books found."
             return rows
-
+        
         if isbn and (not isbn.isdigit() or len(isbn) not in (10, 13)):
             return "Invalid ISBN. Must be 10 or 13 digits."
 
