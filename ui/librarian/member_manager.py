@@ -7,27 +7,27 @@ def create_labeled_entry(parent, label, var, show=None):
     ttk.Label(parent, text=label, font=("Century Gothic", 8)).pack(pady=5)
     ttk.Entry(parent, textvariable=var, font=("Century Gothic", 10), show=show).pack(pady=5)
 
-def open_add_member_popup(app, refresh):
-    popup = ttk.Toplevel(app)
-    popup.geometry("600x400")
-    popup.title("Add Member")
-
+def create_popup(title, size="600x400"):
+    popup = ttk.Toplevel()
+    popup.title(title)
+    popup.geometry(size)
     form = ttk.Frame(popup)
     form.pack(fill="both", expand=True)
+    return popup, form
 
+def open_add_member_popup(app, refresh):
+    popup, form = create_popup("Add Member")
     ttk.Label(form, text="Add New Member", font=("Cambria", 18, "bold")).pack(pady=20)
 
-    name, email, mobile, password = StringVar(), StringVar(), StringVar(), StringVar()
-    for label, var in [("Full Name", name), ("Email Address", email), ("Mobile Number", mobile)]:
-        create_labeled_entry(form, label, var)
-    create_labeled_entry(form, "Password", password, show="*")
+    fields = {label: StringVar() for label in ["Full Name", "Email Address", "Mobile Number", "Password"]}
+    for label in fields:
+        create_labeled_entry(form, label, fields[label], show="*" if label == "Password" else None)
 
     def submit():
-        res = signup_user("Members", email.get(), name.get(), password.get(), mobile.get())
-        if "Error:" in res:
-            messagebox.showerror("Error", res)
-        else:
-            messagebox.showinfo("Success", "Member added successfully!")
+        res = signup_user("Members", fields["Email Address"].get(), fields["Full Name"].get(),
+                          fields["Password"].get(), fields["Mobile Number"].get())
+        messagebox.showinfo("Success" if "Error:" not in res else "Error", res)
+        if "Error:" not in res:
             popup.destroy()
             refresh()
 
@@ -35,30 +35,24 @@ def open_add_member_popup(app, refresh):
     ttk.Label(form, text="Fill the details and click 'Add Member' to create new membership.", font=("Calibri", 10, "italic")).pack(pady=10)
 
 def update_member_popup(app, data, refresh):
-    popup = ttk.Toplevel(app)
-    popup.geometry("600x400")
-    popup.title("Update Member Details")
-
-    form = ttk.Frame(popup)
-    form.pack(fill="both", expand=True)
-
+    popup, form = create_popup("Update Member Details")
     ttk.Label(form, text="Update Member Details", font=("Cambria", 18, "bold")).pack(pady=20)
 
-    name, mobile = StringVar(value=data[1]), StringVar(value=data[4])
-    old_pass, new_pass = StringVar(), StringVar()
-
-    for label, var in [("Full Name", name), ("Mobile Number", mobile)]:
-        create_labeled_entry(form, label, var)
-    create_labeled_entry(form, "Old Password", old_pass, show="*")
-    create_labeled_entry(form, "New Password", new_pass, show="*")
+    fields = {
+        "Full Name": StringVar(value=data[2]),
+        "Mobile Number": StringVar(value=data[4]),
+        "Old Password": StringVar(),
+        "New Password": StringVar()
+    }
+    for label in fields:
+        create_labeled_entry(form, label, fields[label], show="*" if "Password" in label else None)
 
     def save():
-        res = update_user("Members", data[1], old_pass.get(), name.get(), mobile.get(), new_pass.get())
+        res = update_user("Members", data[1], fields["Old Password"].get(), fields["Full Name"].get(),
+                          fields["Mobile Number"].get(), fields["New Password"].get())
+        messagebox.showinfo("Success" if res == "Update successful." else "Error", res)
         if res == "Update successful.":
-            messagebox.showinfo("Success", res)
             popup.destroy()
-        else:
-            messagebox.showerror("Error", res)
         refresh()
 
     ttk.Button(form, text="Save Changes", command=save, style="crimson.TButton").pack(pady=10)
@@ -67,30 +61,20 @@ def update_member_popup(app, data, refresh):
 def remove_points_popup(app, refresh):
     selected = table.selection()
     if not selected:
-        messagebox.showerror("Error", "No member selected!")
-        return
+        return messagebox.showerror("Error", "No member selected!")
 
     email = table.item(selected)["values"][1]
-    popup = ttk.Toplevel(app)
-    popup.geometry("600x400")
-    popup.title("Update Pro Points")
-
-    form = ttk.Frame(popup)
-    form.pack(fill="both", expand=True)
-
+    popup, form = create_popup("Update Pro Points")
     ttk.Label(form, text="Update Pro Points", font=("Cambria", 18, "bold")).pack(pady=20)
 
-    pointsredeemed = StringVar()
-
-    create_labeled_entry(form, "Enter no. of points redeemed: ", pointsredeemed)
+    points = StringVar()
+    create_labeled_entry(form, "Enter no. of points redeemed: ", points)
 
     def save():
-        res = redeem_points_mem(email, pointsredeemed.get())
+        res = redeem_points_mem(email, points.get())
+        messagebox.showinfo("Success" if "points redeemed" in res else "Error", res)
         if "points redeemed" in res:
-            messagebox.showinfo("Success", res)
             popup.destroy()
-        else:
-            messagebox.showerror("Error", res)
         refresh()
 
     ttk.Button(form, text="Save Changes", command=save, style="crimson.TButton").pack(pady=10)
@@ -98,11 +82,9 @@ def remove_points_popup(app, refresh):
 def open_delete_member_popup(app, table, refresh, admin_email):
     selected = table.selection()
     if not selected:
-        messagebox.showerror("Error", "No member selected!")
-        return
+        return messagebox.showerror("Error", "No member selected!")
 
     email = table.item(selected)["values"][1]
-
     popup = tk.Toplevel(app)
     popup.geometry("300x150")
     popup.title("Confirm Membership Cancellation")
@@ -111,34 +93,30 @@ def open_delete_member_popup(app, table, refresh, admin_email):
     ttk.Label(popup, text=f"Cancel membership for:\n{email}").pack(pady=10)
     ttk.Label(popup, text="Enter Admin Password:").pack()
 
-    password_entry = ttk.Entry(popup, show="*")
-    password_entry.pack(pady=5)
+    password = ttk.Entry(popup, show="*")
+    password.pack(pady=5)
 
     def confirm():
-        password = password_entry.get()
-        if not password:
-            messagebox.showerror("Error", "Password is required.")
-            return
+        if not password.get():
+            return messagebox.showerror("Error", "Password is required.")
 
-        res = delete_user("Members", email, password, admin_email)
+        res = delete_user("Members", email, password.get(), admin_email)
+        messagebox.showinfo("Success" if res == "Account deleted successfully." else "Error", res)
         if res == "Account deleted successfully.":
-            messagebox.showinfo("Success", "Membership cancelled.")
             popup.destroy()
             refresh()
-        else:
-            messagebox.showerror("Error", res)
 
     ttk.Button(popup, text="Confirm", command=confirm).pack(pady=10)
 
 def open_update_member_popup(app, refresh):
     selected = table.selection()
     if not selected:
-        messagebox.showerror("Error", "No member selected!")
-        return
+        return messagebox.showerror("Error", "No member selected!")
 
     email = table.item(selected)["values"][1]
     member = get_user("Members", email=email)
-    update_member_popup(app, member, refresh)
+    if member:
+        update_member_popup(app, member, refresh)
 
 def populate_table():
     table.delete(*table.get_children())
@@ -147,7 +125,6 @@ def populate_table():
 
 def member_manager(app, admin_email):
     global table
-
     app.grid_columnconfigure(0, weight=1)
     app.grid_rowconfigure(0, weight=1)
 
@@ -155,7 +132,7 @@ def member_manager(app, admin_email):
     frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
 
     columns = ("Member No.", "Email", "Full Name", "Mobile Number", "Points", "Date of Joining")
-    table = ttk.Treeview(frame, columns=columns, show="headings", height=40,bootstyle="secondary")
+    table = ttk.Treeview(frame, columns=columns, show="headings", height=40, bootstyle="secondary")
 
     for col in columns:
         table.heading(col, text=col)
@@ -170,9 +147,14 @@ def member_manager(app, admin_email):
     btn_frame = ttk.Frame(app)
     btn_frame.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
 
-    ttk.Button(btn_frame, text="Add New Member", command=lambda: open_add_member_popup(app, populate_table), style="crimson.TButton").pack(fill="x", pady=5)
-    ttk.Button(btn_frame, text="Update Member Details", command=lambda: open_update_member_popup(app, populate_table), style="crimson.TButton").pack(fill="x", pady=5)
-    ttk.Button(btn_frame, text="Update ProPoints", command=lambda: remove_points_popup(app, populate_table), style="crimson.TButton").pack(fill="x", pady=5)
-    ttk.Button(btn_frame, text="Delete Member", command=lambda: open_delete_member_popup(app, table, populate_table, admin_email), style="crimson.TButton").pack(fill="x", pady=5)
+    buttons = [
+        ("Add New Member", lambda: open_add_member_popup(app, populate_table)),
+        ("Update Member Details", lambda: open_update_member_popup(app, populate_table)),
+        ("Update ProPoints", lambda: remove_points_popup(app, populate_table)),
+        ("Delete Member", lambda: open_delete_member_popup(app, table, populate_table, admin_email)),
+    ]
+
+    for text, cmd in buttons:
+        ttk.Button(btn_frame, text=text, command=cmd, style="crimson.TButton").pack(fill="x", pady=5)
 
     populate_table()

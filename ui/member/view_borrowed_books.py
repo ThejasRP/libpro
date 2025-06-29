@@ -3,161 +3,109 @@ from tkinter import messagebox
 from backend.bookrecord import get_record
 from backend.books import get_book_det
 from backend.reviews import add_review
+from ui.common import make_scrollable_frame, make_book_card
 
 def view_borrowed_books(app, email):
     def show_main_page():
-        for widget in app.winfo_children():
-            widget.destroy()
+        for w in app.winfo_children(): w.destroy()
 
-        brrwd_books = get_record(email=email)
-        if not brrwd_books or brrwd_books == "No records found." or brrwd_books[0] == "":
-            brrwd_books = []
+        records = get_record(email=email)
+        if not records or records == "No records found." or records[0] == "":
+            records = []
 
-        main_frame = ttk.Frame(app, padding=30)
-        main_frame.pack(fill="both", expand=True)
+        main = ttk.Frame(app, padding=30)
+        main.pack(fill="both", expand=True)
 
-        main_panel = ttk.Frame(main_frame, padding=20)
-        main_panel.pack(side="top", fill="both", expand=True, padx=20, anchor="n")
+        panel = ttk.Frame(main, padding=20)
+        panel.pack(fill="both", expand=True)
 
-        canvas = ttk.Canvas(main_panel, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_panel, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
+        scrollable = make_scrollable_frame(panel)
 
-        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        for idx, rec in enumerate(records):
+            book_data = get_book_det(isbn=rec[3])
+            if not book_data: continue
+            book = book_data[0]
+            sku = rec[1]
+            book = get_book_det(isbn=rec[3])[0]
+            card = make_book_card(
+                parent=scrollable,
+                book=book,
+                on_click=lambda s=sku: show_details_page(sku),
+                status=rec[2]
+            )
+            row, col = divmod(idx, 4)
+            card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        if not records:
+            ttk.Label(scrollable, text="No books found 📭", font=("Helvetica", 14, "bold")) \
+               .pack(pady=30)
 
-        style = ttk.Style()
-        style.configure('hover.TFrame', background='#f0f0f0')
-
-        if brrwd_books:
-            for idx, book in enumerate(brrwd_books):
-                row, col = divmod(idx, 4)
-                book_frame = ttk.Frame(scrollable_frame, width=100, height=160, borderwidth=3, bootstyle="dark")
-                book_frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-                book_frame.grid_propagate(False)
-
-                def on_hover(e, frame=book_frame):
-                    frame.configure(style="hover.TFrame")
-
-                def on_leave(e, frame=book_frame):
-                    frame.configure(bootstyle="dark")
-
-                book_frame.bind("<Enter>", on_hover)
-                book_frame.bind("<Leave>", on_leave)
-
-                b = get_book_det(isbn=book[3])[0]
-                ttk.Label(
-                    book_frame,
-                    text=f"{b[2]}",
-                    font=("Helvetica", 14, "bold"),
-                    wraplength=172,
-                    anchor="center"
-                ).pack(padx=5, fill="both", expand=True)
-
-                for txt in [f"{b[3]}", f"{b[4]}"]:
-                    ttk.Label(book_frame, text=txt, font=("Helvetica", 10), wraplength=180).pack(padx=5, fill="both")
-
-                for widget in book_frame.winfo_children():
-                    widget.bind("<Button-1>", lambda e, sku=book[0]: show_details_page(sku))
-                book_frame.bind("<Button-1>", lambda e, sku=book[0]: show_details_page(sku))
-
-            for i in range(4):
-                scrollable_frame.grid_columnconfigure(i, weight=1)
-        else:
-            ttk.Label(
-                scrollable_frame,
-                text="No books found 📭",
-                font=("Helvetica", 14, "bold")
-            ).pack(anchor="center", pady=30)
+        for i in range(4):
+            scrollable.grid_columnconfigure(i, weight=1)
 
     def show_details_page(sku):
-        for widget in app.winfo_children():
-            widget.destroy()
-
-        brrwd_books = get_record(email=email)
-        book = next((b for b in brrwd_books if b[0] == sku), None)
-        if not book:
-            messagebox.showerror("Error", "Book not found.")
+        for w in app.winfo_children(): w.destroy()
+        rec = next((r for r in get_record(email=email) if r[1] == sku), None)
+        if not rec:
+            messagebox.showerror("Error", "Book record not found.")
             show_main_page()
             return
 
-        bd = get_book_det(isbn=book[3])[0]
+        book_data = get_book_det(isbn=rec[3])[0]
 
         container = ttk.Frame(app, padding=20)
         container.pack(fill="both", expand=True)
 
-        ttk.Label(
-            container,
-            text="📖 Borrowed Book Details",
-            font=("Century Gothic", 18, "bold")
-        ).pack(pady=(0, 15), anchor="center") 
+        ttk.Label(container, text="📖 Borrowed Book Details", font=("Century Gothic", 18, "bold")) \
+           .pack(pady=(0, 15))
 
-        details_frame = ttk.Frame(container, padding=10)
-        details_frame.pack(side="left", fill="both", expand=True)
+        info = ttk.Frame(container, padding=10)
+        info.pack(side="left", fill="both", expand=True)
 
-
-        details = [
-            ("SKU", book[1]), ("Status", book[2]), ("ISBN", book[3]), ("Title", bd[2]), ("Author", bd[4]),
-            ("Genre", bd[6]), ("Language", bd[7]), ("Borrower", f"{book[5]} ({book[4]})"),
-            ("Borrowed On", book[13]), ("Days Borrowed", book[7]), ("Due On", book[10]),
-            ("Returned On", book[11] or "Not returned yet"), ("Days Late", book[8]),
-            ("Fine (Rs.)", book[9]), ("Points Awarded", book[6]), ("Updated On", book[12])
+        fields = [
+            ("SKU", rec[1]), ("Status", rec[2]), ("ISBN", rec[3]), ("Title", book_data[2]),
+            ("Author", book_data[4]), ("Genre", book_data[6]), ("Language", book_data[7]),
+            ("Borrower", f"{rec[5]} ({rec[4]})"), ("Borrowed On", rec[13]),
+            ("Days Borrowed", rec[7]), ("Due On", rec[10]),
+            ("Returned On", rec[11] or "Not returned yet"), ("Days Late", rec[8]),
+            ("Fine (Rs.)", rec[9]), ("Points Awarded", rec[6]),
+            ("Updated On", rec[12])
         ]
-
-        for label, value in details:
-            row = ttk.Frame(details_frame, padding=5)
+        for label, value in fields:
+            row = ttk.Frame(info, padding=5)
             row.pack(fill="x")
-            ttk.Label(row, text=f"{label}:", font=("Helvetica", 13, "bold"), width=15, anchor="w").pack(side="left")
-            ttk.Label(row, text=value, font=("Helvetica", 13), anchor="w", wraplength=300).pack(side="left", fill="x", expand=True)
+            ttk.Label(row, text=f"{label}:", font=("Helvetica", 13, "bold"), width=16) \
+               .pack(side="left")
+            ttk.Label(row, text=value, font=("Helvetica", 13), wraplength=300) \
+               .pack(side="left", fill="x", expand=True)
 
-        review_frame = ttk.Frame(container, padding=10)
-        review_frame.pack(side="left", fill="both", expand=True)
+        right = ttk.Frame(container, padding=10)
+        right.pack(side="left", fill="both", expand=True)
 
-        ttk.Label(review_frame, text="✍️ Write a Review", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(0, 10))
-
-        review_text = ttk.Text(review_frame, height=6, width=50, wrap="word")
-        review_text.pack(fill="x", pady=(0, 10))
-
-        ttk.Label(review_frame, text="⭐ Rating (1 to 5):", font=("Helvetica", 11)).pack(anchor="w", pady=(5, 2))
-
+        ttk.Label(right, text="✍️ Write a Review", font=("Helvetica", 16, "bold")) \
+           .pack(anchor="w", pady=(0, 10))
+        review_box = ttk.Text(right, height=6, wrap="word")
+        review_box.pack(fill="x", pady=(0, 10))
+        ttk.Label(right, text="⭐ Rating (1 to 5):", font=("Helvetica", 11)) \
+           .pack(anchor="w", pady=(5, 2))
         rating_var = ttk.StringVar(value="5")
-        ttk.Combobox(
-            review_frame,
-            textvariable=rating_var,
-            values=["1", "2", "3", "4", "5"],
-            width=5,
-            state="readonly"
-        ).pack(anchor="w", pady=(0, 10))
+        ttk.Combobox(right, textvariable=rating_var, values=["1","2","3","4","5"], 
+                     width=5, state="readonly").pack(anchor="w", pady=(0,10))
 
         def submit_review():
-            review = review_text.get("1.0", "end").strip()
+            review = review_box.get("1.0", "end").strip()
             rating = rating_var.get()
-            response = add_review(
-                isbn=book[3],
-                fullname=book[5],
-                email=email,
-                review=review,
-                rating=rating
-            )
-            if response == "Review added successfully.":
-                messagebox.showinfo("✅ Success", response)
-                review_text.delete("1.0", "end")
-                rating_var.set("5")
+            res = add_review(isbn=rec[3], fullname=rec[5], email=email,
+                             review=review, rating=rating)
+            if "successfully" in res:
+                messagebox.showinfo("✅ Success", res)
+                review_box.delete("1.0", "end"); rating_var.set("5")
             else:
-                messagebox.showerror("❌ Error", response)
+                messagebox.showerror("❌ Error", res)
 
-        ttk.Button(
-            review_frame, text="✅ Submit Review", command=submit_review,
-            style="crimson.TButton"
-        ).pack(anchor="center", pady=15)
-
-        ttk.Button(
-            details_frame, text="🔙 Back", command=show_main_page,
-            style="crimson.TButton"
-        ).pack(pady=20, anchor="w")
+        ttk.Button(right, text="✅ Submit Review", command=submit_review, style="crimson.TButton") \
+           .pack(pady=10)
+        ttk.Button(info, text="⬅ Back", command=show_main_page, style="crimson.TButton") \
+           .pack(pady=20, anchor="w")
 
     show_main_page()

@@ -9,124 +9,112 @@ HEADERS_MAP = {
     "Members": MEMBER_HEADERS,
 }
 
-def _validate_user_type(db):
+def _validate_user_type(db): 
     if db not in HEADERS_MAP:
-        raise ValueError("Invalid user type.")
+        raise ValueError("Error: Invalid user type.")
 
 def _validate_mobile(mobile):
     if not (mobile and mobile.isdigit() and len(mobile) == 10):
-        raise ValueError("Invalid mobile number.")
+        raise ValueError("Error: Invalid mobile number.")
 
-def _get_password_from_db(db, email):
+def _ensure_email_exists(db, email):
     row = fOne(f"SELECT Password FROM {db} WHERE EmailID = %s", (email,))
     if not row:
-        raise ValueError("Email not found.")
+        raise ValueError("Error: Email not found.")
     return decrypt_password(row[0])
+
+def _ensure_member_exists(email):
+    row = fOne("SELECT Points FROM Members WHERE EmailID = %s", (email,))
+    if not row:
+        raise ValueError("Error: Member not found.")
+    return row[0]
 
 def signup_user(db, email, fullname, password, mobile):
     try:
         _validate_user_type(db)
-
         if not all([email, fullname, password, mobile]):
-            return "All fields are required."
-        
+            return "Error: All fields are required."
         _validate_mobile(mobile)
-
         if fOne(f"SELECT 1 FROM {db} WHERE EmailID = %s", (email,)):
-            return "Email already registered."
+            return "Error: Email already registered."
 
         execQy(
             f"INSERT INTO {db} (EmailID, FullName, Password, MobileNumber) VALUES (%s, %s, %s, %s)",
             (email, fullname, encrypt_password(password), mobile),
         )
         return "Signup successful."
-
     except (ValueError, Error) as e:
         return str(e)
     except Exception as e:
-        return f"Unexpected error: {e}"
+        return f"Error: {e}"
 
 def signin_user(db, email, password):
     try:
         _validate_user_type(db)
         if not email or not password:
-            return "Email and password are required."
+            return "Error: Email and password are required."
 
-        stored_pwd = _get_password_from_db(db, email)
+        stored_pwd = _ensure_email_exists(db, email)
         if password != stored_pwd:
-            return "Invalid email or password."
+            return "Error: Invalid email or password."
 
         execQy(f"UPDATE {db} SET LastLoginOn = %s WHERE EmailID = %s", (datetime.now(), email))
         return "Login successful."
-
     except (ValueError, Error) as e:
         return str(e)
     except Exception as e:
-        return f"Unexpected error: {e}"
+        return f"Error: {e}"
 
 def update_user(db, email, old_password, fullname=None, mobile=None, new_password=None):
     try:
         _validate_user_type(db)
         if not email or not old_password:
-            return "Email and old password are required."
+            return "Error: Email and old password are required."
 
-        stored_pwd = _get_password_from_db(db, email)
-        if old_password != stored_pwd:
-            return "Old password is incorrect."
+        if old_password != _ensure_email_exists(db, email):
+            return "Error: Old password is incorrect."
 
         fields, values = [], []
-
-        if fullname:
-            fields.append("FullName = %s")
-            values.append(fullname)
+        if fullname: fields += ["FullName = %s"]; values += [fullname]
         if mobile:
             _validate_mobile(mobile)
-            fields.append("MobileNumber = %s")
-            values.append(mobile)
-        if new_password:
-            fields.append("Password = %s")
-            values.append(encrypt_password(new_password))
+            fields += ["MobileNumber = %s"]; values += [mobile]
+        if new_password: fields += ["Password = %s"]; values += [encrypt_password(new_password)]
 
         if not fields:
-            return "Nothing to update."
+            return "Error: Nothing to update."
 
         values.append(email)
         execQy(f"UPDATE {db} SET {', '.join(fields)} WHERE EmailID = %s", tuple(values))
         return "Update successful."
-
     except (ValueError, Error) as e:
         return str(e)
     except Exception as e:
-        return f"Unexpected error: {e}"
+        return f"Error: {e}"
 
 def delete_user(db, email, password, librarianEmail=None):
     try:
         _validate_user_type(db)
         if not email or not password:
-            return "Email and password are required."
+            return "Error: Email and password are required."
 
-        row = fOne("SELECT Password FROM Librarian WHERE EmailID = %s", (librarianEmail,))
-        if not row:
-            return "Email not found."
-
-        if decrypt_password(row[0]) != password:
-            return "Incorrect password."
+        admin_pwd = _ensure_email_exists("Librarian", librarianEmail)
+        if admin_pwd != password:
+            return "Error: Incorrect password."
 
         execQy(f"DELETE FROM {db} WHERE EmailID = %s", (email,))
         return "Account deleted successfully."
-
     except (ValueError, Error) as e:
         return str(e)
     except Exception as e:
-        return f"Unexpected error: {e}"
+        return f"Error: {e}"
 
 def get_user(db, fields=None, email=None, count=False, bool=False):
     try:
         _validate_user_type(db)
-
         selected_fields = validate_fields(fields, HEADERS_MAP[db]) if fields else "*"
         if selected_fields == "INVALID":
-            return "Invalid field(s) provided."
+            return "Error: Invalid field(s) provided."
 
         if email:
             row = fOne(f"SELECT {selected_fields} FROM {db} WHERE EmailID = %s", (email,))
@@ -137,86 +125,71 @@ def get_user(db, fields=None, email=None, count=False, bool=False):
             return row[0] if row else 0
 
         return fAll(f"SELECT {selected_fields} FROM {db}")
-
     except (ValueError, Error) as e:
         return False if bool else str(e)
     except Exception as e:
-        return False if bool else f"Unexpected error: {e}"
+        return False if bool else f"Error: {e}"
 
 def wishlist_mem(email, isbn, action):
     try:
-        if not email or not isbn or not action:
-            return "Email, ISBN, and action are required."
+        if not all([email, isbn, action]):
+            return "Error: Email, ISBN, and action are required."
         if not (isbn.isdigit() and len(isbn) in (10, 13)):
-            return "Invalid ISBN."
-        if action not in ("add", "remove"):
-            return "Action must be 'add' or 'remove'."
+            return "Error: Invalid ISBN."
+        if action not in ("added", "removed"):
+            return "Error: Action must be 'added' or 'removed'."
 
         row = fOne("SELECT WishlistedBooks FROM Members WHERE EmailID = %s", (email,))
         if not row:
-            return "Member not found."
+            return "Error: Member not found."
 
         wishlist = row[0].split(",") if row[0] else []
 
-        if action == "add":
-            if isbn in wishlist:
-                return "ISBN already in wishlist."
+        if action == "added":
+            if isbn in wishlist: return "Error: ISBN already in wishlist."
             wishlist.append(isbn)
-        else:  # remove
-            if isbn not in wishlist:
-                return "ISBN not in wishlist."
+        else:
+            if isbn not in wishlist: return "Error: ISBN not in wishlist."
             wishlist.remove(isbn)
 
         execQy("UPDATE Members SET WishlistedBooks = %s WHERE EmailID = %s", (",".join(wishlist), email))
-        return f"Wishlist updated successfully ({action})."
-
+        return f"{action.title()} book in wishlist."
     except (ValueError, Error) as e:
         return str(e)
     except Exception as e:
-        return f"Unexpected error: {e}"
+        return f"Error: {e}"
 
-def add_points_mem(email, isbn, val=0):
+def add_points_mem(email, isbn, val=10):
     try:
         if not email or not isbn:
-            return "Email and ISBN are required."
+            return "Error: Email and ISBN are required."
 
-        if not fOne("SELECT Genre FROM Books WHERE ISBN = %s", (isbn,)):
-            return "Book not found."
+        if not fOne("SELECT 1 FROM Books WHERE ISBN = %s", (isbn,)):
+            return "Error: Book not found."
 
-        row = fOne("SELECT Points FROM Members WHERE EmailID = %s", (email,))
-        if not row:
-            return "Member not found."
-
-        new_total = row[0] + 10
-        execQy("UPDATE Members SET Points = %s WHERE EmailID = %s", (new_total, email))
-        return 10
-
+        current_points = _ensure_member_exists(email)
+        execQy("UPDATE Members SET Points = %s WHERE EmailID = %s", (current_points + val, email))
+        return val
     except (ValueError, Error) as e:
         return str(e)
     except Exception as e:
-        return f"Unexpected error: {e}"
+        return f"Error: {e}"
 
 def redeem_points_mem(email, points):
     try:
         if not email or not points:
-            return "Email and points are required."
+            return "Error: Email and points are required."
         if not str(points).isdigit() or int(points) <= 0:
-            return "Invalid points."
+            return "Error: Invalid points."
 
-        row = fOne("SELECT Points FROM Members WHERE EmailID = %s", (email,))
-        if not row:
-            return "Member not found."
-
-        current_points = row[0]
         points = int(points)
+        current_points = _ensure_member_exists(email)
         if current_points < points:
-            return "Insufficient points."
+            return "Error: Insufficient points."
 
-        new_total = current_points - points
-        execQy("UPDATE Members SET Points = %s WHERE EmailID = %s", (new_total, email))
-        return f"{points} points redeemed. New total: {new_total}."
-
+        execQy("UPDATE Members SET Points = %s WHERE EmailID = %s", (current_points - points, email))
+        return f"{points} points redeemed. New total: {current_points - points}."
     except (ValueError, Error) as e:
         return str(e)
     except Exception as e:
-        return f"Unexpected error: {e}"
+        return f"Error: {e}"
